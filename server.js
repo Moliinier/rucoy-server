@@ -1,3 +1,4 @@
+
 // ================================================
 // Rucoy Online - Servidor Privado
 // Puerto TCP: 4000
@@ -277,8 +278,10 @@ function broadcastToMap(map, excludeUsername, type, data) {
 // ================================================
 // SERVIDOR HTTP - Para el server_list.json
 // ================================================
+app.get('/s.json', (req, res) => res.redirect('/server_list.json'));
+
 app.get('/server_list.json', (req, res) => {
-  const myIp = process.env.MY_IP || '0.0.0.0';
+  const myIp = process.env.MY_IP || 'rucoy-server-production.up.railway.app';
   res.json({
     servers: [
       {
