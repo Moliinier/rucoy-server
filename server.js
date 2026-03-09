@@ -19,7 +19,7 @@ const players = {}; // { username: { password, x, y, map, level, hp, mp, exp, go
 // ================================================
 const SERVER_NAME = "Mi Servidor Rucoy";
 const SERVER_VERSION = 78; // Debe coincidir con el cliente
-const TCP_PORT = 4000;
+const TCP_PORT = process.env.TCP_PORT || 4001;
 const HTTP_PORT = process.env.PORT || 3000;
 
 // Mapa inicial donde aparecen los jugadores
