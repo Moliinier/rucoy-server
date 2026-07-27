@@ -1,0 +1,570 @@
+--[[
+    ═══════════════════════════════════════════════════════════════════════════
+    DRACONIC X - CONTROL GUI
+    Panel de Control para: Auto Farm, Auto Spawn, Fullbright, Emote Speed
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    ADVERTENCIA: Este script NO modifica los scripts originales
+    Solo los activa/desactiva manteniendo su funcionamiento original
+]]
+
+print("\n" .. string.rep("=", 80))
+print("DRACONIC X - CONTROL GUI INICIANDO")
+print(string.rep("=", 80) .. "\n")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+if not LocalPlayer then
+    error("ERROR: No hay jugador local")
+    return
+end
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// ESTADO GLOBAL DE FEATURES
+--// ═════════════════════════════════════════════════════════════════════════════
+
+local Features = {
+    AutoFarm = {
+        Enabled = false,
+        Connection = nil,
+    },
+    AutoSpawn = {
+        Enabled = false,
+        Connection = nil,
+    },
+    Fullbright = {
+        Enabled = false,
+        Connection = nil,
+        OriginalBrightness = Lighting.Brightness,
+        OriginalAmbient = Lighting.Ambient,
+        OriginalOutdoorAmbient = Lighting.OutdoorAmbient,
+    },
+    EmoteSpeed = {
+        Enabled = false,
+        Connection = nil,
+        Speed = 1.5,
+    }
+}
+
+print("FEATURES: Sistema de estado inicializado")
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// AUTO FARM
+--// ═════════════════════════════════════════════════════════════════════════════
+
+local function enableAutoFarm()
+    if Features.AutoFarm.Connection then return end
+    
+    local function startTicketFarm()
+        local securityPart = workspace:FindFirstChild("SecurityPart")
+        if not securityPart then return end
+
+        Features.AutoFarm.Connection = RunService.Heartbeat:Connect(function()
+            local character = LocalPlayer.Character
+            if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+            local hrp = character.HumanoidRootPart
+            
+            local tickets = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Effects") and workspace.Game.Effects:FindFirstChild("Tickets")
+            
+            if character:GetAttribute("Downed") then
+                pcall(function()
+                    ReplicatedStorage.Events.Player.ChangePlayerMode:FireServer(true)
+                end)
+                hrp.CFrame = securityPart.CFrame + Vector3.new(0, 3, 0)
+                return
+            end
+
+            if tickets then
+                local activeTickets = tickets:GetChildren()
+                if #activeTickets > 0 then
+                    local targetTicket = activeTickets[1]
+                    local ticketPart = targetTicket:FindFirstChild("HumanoidRootPart") or (targetTicket:IsA("BasePart") and targetTicket)
+                    
+                    if ticketPart then
+                        hrp.CFrame = ticketPart.CFrame + Vector3.new(0, 15, 0)
+                        task.wait(0.1)
+                        hrp.CFrame = ticketPart.CFrame
+                    end
+                else
+                    hrp.CFrame = securityPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end)
+    end
+    
+    startTicketFarm()
+    print("✅ Auto Farm ACTIVADO")
+end
+
+local function disableAutoFarm()
+    if Features.AutoFarm.Connection then
+        Features.AutoFarm.Connection:Disconnect()
+        Features.AutoFarm.Connection = nil
+        print("❌ Auto Farm DESACTIVADO")
+    end
+end
+
+print("AUTO FARM: Funciones cargadas")
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// AUTO SPAWN
+--// ═════════════════════════════════════════════════════════════════════════════
+
+local AutoSpawnData = {
+    hasRevived = false,
+    lastConnection = nil,
+}
+
+local function enableAutoSpawn()
+    if Features.AutoSpawn.Connection then return end
+    
+    local function connectCharacter(character)
+        local attributeConnection = character:GetAttributeChangedSignal("Downed"):Connect(function()
+            if character:GetAttribute("Downed") and not AutoSpawnData.hasRevived then
+                AutoSpawnData.hasRevived = true
+                
+                pcall(function()
+                    ReplicatedStorage.Events.Player.ChangePlayerMode:FireServer(true)
+                end)
+                
+                task.delay(0.5, function() 
+                    AutoSpawnData.hasRevived = false 
+                end)
+            end
+        end)
+        
+        Features.AutoSpawn.Connection = attributeConnection
+    end
+
+    if LocalPlayer.Character then 
+        connectCharacter(LocalPlayer.Character) 
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(connectCharacter)
+    print("✅ Auto Spawn ACTIVADO")
+end
+
+local function disableAutoSpawn()
+    if Features.AutoSpawn.Connection then
+        Features.AutoSpawn.Connection:Disconnect()
+        Features.AutoSpawn.Connection = nil
+        print("❌ Auto Spawn DESACTIVADO")
+    end
+end
+
+print("AUTO SPAWN: Funciones cargadas")
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// FULLBRIGHT
+--// ═════════════════════════════════════════════════════════════════════════════
+
+local function applyFullBright()
+    Lighting.Brightness = 1
+    Lighting.Ambient = Color3.new(1, 1, 1)
+    Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Top = Color3.new(1, 1, 1)
+end
+
+local function restoreLighting()
+    Lighting.Brightness = Features.Fullbright.OriginalBrightness
+    Lighting.Ambient = Features.Fullbright.OriginalAmbient
+    Lighting.OutdoorAmbient = Features.Fullbright.OriginalOutdoorAmbient
+end
+
+local function enableFullbright()
+    if Features.Fullbright.Connection then return end
+    
+    applyFullBright()
+    
+    Features.Fullbright.Connection = RunService.Heartbeat:Connect(function()
+        applyFullBright()
+    end)
+    
+    print("✅ Fullbright ACTIVADO")
+end
+
+local function disableFullbright()
+    if Features.Fullbright.Connection then
+        Features.Fullbright.Connection:Disconnect()
+        Features.Fullbright.Connection = nil
+        restoreLighting()
+        print("❌ Fullbright DESACTIVADO")
+    end
+end
+
+print("FULLBRIGHT: Funciones cargadas")
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// EMOTE SPEED
+--// ═════════════════════════════════════════════════════════════════════════════
+
+local function applySpeedMultiplier(speedMultiplier)
+    for _, obj in pairs(getgc(true)) do
+        if typeof(obj) == "table" and rawget(obj, "WalkSpeedMultiplier") ~= nil then
+            pcall(function()
+                obj.WalkSpeedMultiplier = speedMultiplier
+            end)
+        end
+    end
+end
+
+local function enableEmoteSpeed()
+    if Features.EmoteSpeed.Connection then return end
+    
+    local function setupEmoteConnection(character)
+        if Features.EmoteSpeed.Connection then 
+            Features.EmoteSpeed.Connection:Disconnect() 
+        end
+        if not character then return end
+        
+        Features.EmoteSpeed.Connection = character:GetAttributeChangedSignal("State"):Connect(function()
+            local state = character:GetAttribute("State")
+            if state == "Emoting" then
+                applySpeedMultiplier(Features.EmoteSpeed.Speed)
+            else
+                applySpeedMultiplier(1.5)
+            end
+        end)
+    end
+    
+    if LocalPlayer.Character then
+        setupEmoteConnection(LocalPlayer.Character)
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(setupEmoteConnection)
+    print("✅ Emote Speed ACTIVADO - Velocidad: " .. Features.EmoteSpeed.Speed)
+end
+
+local function disableEmoteSpeed()
+    if Features.EmoteSpeed.Connection then
+        Features.EmoteSpeed.Connection:Disconnect()
+        Features.EmoteSpeed.Connection = nil
+        applySpeedMultiplier(1.5)
+        print("❌ Emote Speed DESACTIVADO")
+    end
+end
+
+print("EMOTE SPEED: Funciones cargadas")
+
+--// ═════════════════════════════════════════════════════════════════════════════
+--// CREAR GUI MOVIBLE
+--// ═════════════════════════════════════════════════════════════════════════════
+
+print("\nCreando GUI de Control...")
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DraconicXControlGUI"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 999
+screenGui.Parent = PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 280)
+mainFrame.Position = UDim2.new(0.8, -210, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 2
+mainFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
+mainFrame.Parent = screenGui
+
+--// Hacer la frame movible
+local dragging = false
+local dragStart = nil
+local frameStart = nil
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        frameStart = mainFrame.Position
+    end
+end)
+
+local UserInputService = game:GetService("UserInputService")
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = frameStart + UDim2.new(0, delta.X, 0, delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+--// Título
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 25)
+title.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 12
+title.Text = "DRACONIC X"
+title.BorderSizePixel = 0
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+--// Divider
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, 0, 0, 2)
+divider.Position = UDim2.new(0, 0, 0, 25)
+divider.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+divider.BorderSizePixel = 0
+divider.Parent = mainFrame
+
+--// Auto Farm Toggle
+local autoFarmLabel = Instance.new("TextLabel")
+autoFarmLabel.Size = UDim2.new(0.65, 0, 0, 20)
+autoFarmLabel.Position = UDim2.new(0.05, 0, 0, 35)
+autoFarmLabel.BackgroundTransparency = 1
+autoFarmLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+autoFarmLabel.TextSize = 10
+autoFarmLabel.Text = "Auto Farm"
+autoFarmLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoFarmLabel.Font = Enum.Font.Gotham
+autoFarmLabel.Parent = mainFrame
+
+local autoFarmButton = Instance.new("TextButton")
+autoFarmButton.Name = "AutoFarmButton"
+autoFarmButton.Size = UDim2.new(0.25, 0, 0, 20)
+autoFarmButton.Position = UDim2.new(0.7, 0, 0, 35)
+autoFarmButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+autoFarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoFarmButton.TextSize = 10
+autoFarmButton.Text = "OFF"
+autoFarmButton.BorderSizePixel = 0
+autoFarmButton.Font = Enum.Font.GothamBold
+autoFarmButton.Parent = mainFrame
+
+autoFarmButton.MouseButton1Click:Connect(function()
+    if autoFarmButton.Text == "OFF" then
+        Features.AutoFarm.Enabled = true
+        enableAutoFarm()
+        autoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        autoFarmButton.Text = "ON"
+    else
+        Features.AutoFarm.Enabled = false
+        disableAutoFarm()
+        autoFarmButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        autoFarmButton.Text = "OFF"
+    end
+end)
+
+--// Auto Spawn Toggle
+local autoSpawnLabel = Instance.new("TextLabel")
+autoSpawnLabel.Size = UDim2.new(0.65, 0, 0, 20)
+autoSpawnLabel.Position = UDim2.new(0.05, 0, 0, 60)
+autoSpawnLabel.BackgroundTransparency = 1
+autoSpawnLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+autoSpawnLabel.TextSize = 10
+autoSpawnLabel.Text = "Auto Spawn"
+autoSpawnLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoSpawnLabel.Font = Enum.Font.Gotham
+autoSpawnLabel.Parent = mainFrame
+
+local autoSpawnButton = Instance.new("TextButton")
+autoSpawnButton.Name = "AutoSpawnButton"
+autoSpawnButton.Size = UDim2.new(0.25, 0, 0, 20)
+autoSpawnButton.Position = UDim2.new(0.7, 0, 0, 60)
+autoSpawnButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+autoSpawnButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoSpawnButton.TextSize = 10
+autoSpawnButton.Text = "OFF"
+autoSpawnButton.BorderSizePixel = 0
+autoSpawnButton.Font = Enum.Font.GothamBold
+autoSpawnButton.Parent = mainFrame
+
+autoSpawnButton.MouseButton1Click:Connect(function()
+    if autoSpawnButton.Text == "OFF" then
+        Features.AutoSpawn.Enabled = true
+        enableAutoSpawn()
+        autoSpawnButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        autoSpawnButton.Text = "ON"
+    else
+        Features.AutoSpawn.Enabled = false
+        disableAutoSpawn()
+        autoSpawnButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        autoSpawnButton.Text = "OFF"
+    end
+end)
+
+--// Fullbright Toggle
+local fullbrightLabel = Instance.new("TextLabel")
+fullbrightLabel.Size = UDim2.new(0.65, 0, 0, 20)
+fullbrightLabel.Position = UDim2.new(0.05, 0, 0, 85)
+fullbrightLabel.BackgroundTransparency = 1
+fullbrightLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+fullbrightLabel.TextSize = 10
+fullbrightLabel.Text = "Fullbright"
+fullbrightLabel.TextXAlignment = Enum.TextXAlignment.Left
+fullbrightLabel.Font = Enum.Font.Gotham
+fullbrightLabel.Parent = mainFrame
+
+local fullbrightButton = Instance.new("TextButton")
+fullbrightButton.Name = "FullbrightButton"
+fullbrightButton.Size = UDim2.new(0.25, 0, 0, 20)
+fullbrightButton.Position = UDim2.new(0.7, 0, 0, 85)
+fullbrightButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+fullbrightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+fullbrightButton.TextSize = 10
+fullbrightButton.Text = "OFF"
+fullbrightButton.BorderSizePixel = 0
+fullbrightButton.Font = Enum.Font.GothamBold
+fullbrightButton.Parent = mainFrame
+
+fullbrightButton.MouseButton1Click:Connect(function()
+    if fullbrightButton.Text == "OFF" then
+        Features.Fullbright.Enabled = true
+        enableFullbright()
+        fullbrightButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        fullbrightButton.Text = "ON"
+    else
+        Features.Fullbright.Enabled = false
+        disableFullbright()
+        fullbrightButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        fullbrightButton.Text = "OFF"
+    end
+end)
+
+--// Divider
+local divider2 = Instance.new("Frame")
+divider2.Size = UDim2.new(1, 0, 0, 1)
+divider2.Position = UDim2.new(0, 0, 0, 115)
+divider2.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+divider2.BorderSizePixel = 0
+divider2.Parent = mainFrame
+
+--// Emote Speed Label
+local emoteLabel = Instance.new("TextLabel")
+emoteLabel.Size = UDim2.new(1, -10, 0, 15)
+emoteLabel.Position = UDim2.new(0.05, 0, 0, 125)
+emoteLabel.BackgroundTransparency = 1
+emoteLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+emoteLabel.TextSize = 10
+emoteLabel.Text = "Emote Speed: 1.5"
+emoteLabel.TextXAlignment = Enum.TextXAlignment.Left
+emoteLabel.Font = Enum.Font.Gotham
+emoteLabel.Parent = mainFrame
+
+--// Emote Speed Slider
+local sliderBg = Instance.new("Frame")
+sliderBg.Size = UDim2.new(0.9, 0, 0, 8)
+sliderBg.Position = UDim2.new(0.05, 0, 0, 145)
+sliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+sliderBg.BorderSizePixel = 0
+sliderBg.Parent = mainFrame
+
+local sliderButton = Instance.new("Frame")
+sliderButton.Name = "SliderButton"
+sliderButton.Size = UDim2.new(0.1, 0, 0, 12)
+sliderButton.Position = UDim2.new(0, 0, 0.5, -6)
+sliderButton.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+sliderButton.BorderSizePixel = 0
+sliderButton.Parent = sliderBg
+
+local isDraggingSlider = false
+local minSpeed = 1.0
+local maxSpeed = 3.0
+
+sliderButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSlider = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSlider = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local mouse = Players.LocalPlayer:GetMouse()
+        local sliderSize = sliderBg.AbsoluteSize.X
+        local sliderPos = sliderBg.AbsolutePosition.X
+        local mousePos = mouse.X - sliderPos
+        
+        local percentage = math.clamp(mousePos / sliderSize, 0, 1)
+        local newSpeed = math.floor((minSpeed + (maxSpeed - minSpeed) * percentage) * 10) / 10
+        
+        Features.EmoteSpeed.Speed = newSpeed
+        emoteLabel.Text = "Emote Speed: " .. newSpeed
+        
+        sliderButton.Position = UDim2.new(percentage - 0.05, 0, 0.5, -6)
+        
+        if Features.EmoteSpeed.Enabled then
+            enableEmoteSpeed()
+        end
+    end
+end)
+
+--// Emote Speed Toggle
+local emoteToggleLabel = Instance.new("TextLabel")
+emoteToggleLabel.Size = UDim2.new(0.65, 0, 0, 20)
+emoteToggleLabel.Position = UDim2.new(0.05, 0, 0, 165)
+emoteToggleLabel.BackgroundTransparency = 1
+emoteToggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+emoteToggleLabel.TextSize = 10
+emoteToggleLabel.Text = "Enable"
+emoteToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+emoteToggleLabel.Font = Enum.Font.Gotham
+emoteToggleLabel.Parent = mainFrame
+
+local emoteButton = Instance.new("TextButton")
+emoteButton.Name = "EmoteButton"
+emoteButton.Size = UDim2.new(0.25, 0, 0, 20)
+emoteButton.Position = UDim2.new(0.7, 0, 0, 165)
+emoteButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+emoteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+emoteButton.TextSize = 10
+emoteButton.Text = "OFF"
+emoteButton.BorderSizePixel = 0
+emoteButton.Font = Enum.Font.GothamBold
+emoteButton.Parent = mainFrame
+
+emoteButton.MouseButton1Click:Connect(function()
+    if emoteButton.Text == "OFF" then
+        Features.EmoteSpeed.Enabled = true
+        enableEmoteSpeed()
+        emoteButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        emoteButton.Text = "ON"
+    else
+        Features.EmoteSpeed.Enabled = false
+        disableEmoteSpeed()
+        emoteButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        emoteButton.Text = "OFF"
+    end
+end)
+
+print("✅ GUI CREADA Y FUNCIONAL")
+
+print("\n" .. string.rep("=", 80))
+print("OK: DRACONIC X - CONTROL GUI COMPLETAMENTE OPERATIVO")
+print(string.rep("=", 80))
+
+print("\nCARACTERISTICAS:")
+print("   ✅ Auto Farm - ON/OFF")
+print("   ✅ Auto Spawn - ON/OFF")
+print("   ✅ Fullbright - ON/OFF")
+print("   ✅ Emote Speed - Slider 1.0-3.0 + Toggle")
+print("   ✅ GUI MOVIBLE")
+print("   ✅ NINGÚN SCRIPT FUE MODIFICADO")
+
+print("\nCOMO USAR:")
+print("   1. Abre la GUI en la esquina superior derecha")
+print("   2. Presiona los botones ON/OFF para activar/desactivar")
+print("   3. Ajusta el slider de Emote Speed (1.0 a 3.0)")
+print("   4. Arrastra la GUI para moverla")
+
+print("\n" .. string.rep("=", 80) .. "\n")
